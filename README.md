@@ -1,7 +1,17 @@
+# Truck installers
+
+Two scripts for the Comfortably Yum system:
+
+| Script | Sets up | Manual |
+| --- | --- | --- |
+| `Install-TruckPC.bat` | The truck PC: SQL Server, Node.js, the sync and Kitchen Display services, the database, the menu board, firewall and boot tasks. | Steps 3.1 to 3.11 |
+| `Install-Tablets.bat` | The register and Kitchen Display apps on Android tablets plugged into the PC with a USB cable. | Steps 4.2 and 5.2 (and the permissions in 4.5 and 5.4) |
+
+Do the truck PC first. The tablet installer is described at the end of this file.
+
 # Truck PC installer
 
-One script that sets up the truck PC for the Comfortably Yum register, Kitchen Display and menu board
-(steps 3.1 to 3.11 of the User Manual).
+One script that sets up the truck PC for the Comfortably Yum register, Kitchen Display and menu board.
 
 ## Use it
 
@@ -69,3 +79,68 @@ generated `.env` files on spare ports, runs the installer a second time, and rem
 **Not covered by the tests** (they need a clean PC or administrator rights): the winget installs, the SQL Server
 Express install and its registry settings, creating firewall rules and scheduled tasks, and installing the
 KFIDisplay msi. Try the script on a spare PC or a virtual machine before relying on it for a real replacement.
+
+---
+
+# Tablet installer
+
+`Install-Tablets.bat` installs or updates the two Android apps on tablets plugged into the PC with a USB cable, using
+`adb`. It never uninstalls an app, because that would erase its sales and settings, and an update keeps the app's data.
+
+## Before you run it
+
+On each tablet: Settings > About tablet > tap **Build number** 7 times, then Settings > System > **Developer options** >
+turn on **USB debugging**. Plug in the cable, set the USB mode to **File transfer**, and tap **Allow** on the tablet's
+"Allow USB debugging?" box (tick Always allow).
+
+Put the APK files next to the script (or in an `apk` folder next to it). If you build the apps on this PC, it also finds
+them in the build folders by itself. It picks the newest version of each: `ComfortablyYum-<version>-live.apk` and
+`KitchenDisplay-<version>.apk`.
+
+If `adb` is not on the PC, the script downloads Google's platform-tools (about 7 MB) into a `tools` folder next to it.
+
+## Use it
+
+Double-click **Install-Tablets.bat**. For each tablet it shows the model, serial and what is installed, and asks whether it
+is the Register, the Kitchen Display, both, or to skip. It then installs, opens the app, and prints a summary.
+
+Or give the answers in advance:
+
+```
+Install-Tablets.bat -Role Register -GrantPermissions -TurnOffDeveloperOptions
+Install-Tablets.bat -RegisterSerial ABC123 -KitchenSerial DEF456 -GrantPermissions -Yes
+Install-Tablets.bat -DryRun
+```
+
+## Options
+
+| Option | Meaning |
+| --- | --- |
+| `-Role Register`, `Kitchen` or `Both` | What the one connected tablet is. |
+| `-RegisterSerial`, `-KitchenSerial` | Which tablet is which, when two are plugged in (serials are shown when it runs). |
+| `-RegisterApk`, `-KitchenApk` | A specific APK file. |
+| `-GrantPermissions` | Pre-allow the permissions the apps need (Bluetooth, location, phone and microphone for the register; microphone for the kitchen app), so there are fewer prompts. |
+| `-TurnOffDeveloperOptions` | After installing the register, switch Developer options and USB debugging off (needed for the live Square reader). Do this last: adb stops working on that tablet afterwards. |
+| `-WixKeyFile`, `-SettingsBackup` | Copy a Wix key file or a register settings backup into the tablet's Download folder, for Settings > Wix menu > **Load key from file** and Settings > Backup > **Restore settings**. Delete them from the tablet afterwards. |
+| `-Reinstall` | Install again even if the same version is already there. |
+| `-PcAddress` | Shown in the "still to do" lines at the end. |
+| `-NoLaunch`, `-NoDownload`, `-WaitSeconds`, `-Yes`, `-DryRun`, `-NoPause`, `-AdbPath` | Do not open the app / do not download adb / wait for a tablet to appear / do not ask questions / report only / do not wait at the end / use this adb. |
+
+## What it cannot do
+
+Apps keep their settings in private storage, so the PC address, sync key, Square, Wix, Venmo, printers and Bluetooth
+pairing still have to be entered on the tablet (User Manual sections 4 and 5). The summary says what is left.
+
+## Tests
+
+```
+powershell -ExecutionPolicy Bypass -File tests\Test-TabletInstaller.ps1
+powershell -ExecutionPolicy Bypass -File tests\Test-TabletInstaller.ps1 -Integration
+```
+
+The first checks the parsing and file-finding code and, if a tablet is plugged in, a dry run and a "leave current apps
+alone" run. `-Integration` also reinstalls the Kitchen Display app over itself (same version, data kept), tries the
+permission grant and a file copy, and restores the tablet.
+
+Not covered: installing an app that is not on the tablet yet, a different version, `-TurnOffDeveloperOptions` (it ends the
+adb connection), and a second tablet.
