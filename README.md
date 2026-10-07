@@ -120,6 +120,7 @@ Install-Tablets.bat -DryRun
 | `-RegisterSerial`, `-KitchenSerial` | Which tablet is which, when two are plugged in (serials are shown when it runs). |
 | `-RegisterApk`, `-KitchenApk` | A specific APK file. |
 | `-GrantPermissions` | Pre-allow the permissions the apps need (Bluetooth, location, phone and microphone for the register; microphone for the kitchen app), so there are fewer prompts. |
+| `-SetKitchenAsHome` | Make Annaware Kitchen Display the tablet's Home app (needs app 1.2.0+), so Android opens it by itself every time the tablet starts. The old Home app is recorded in the summary with the command that puts it back. |
 | `-TurnOffDeveloperOptions` | After installing the register, switch Developer options and USB debugging off (needed for the live Square reader). Do this last: adb stops working on that tablet afterwards. |
 | `-WixKeyFile`, `-SettingsBackup` | Copy a Wix key file or a register settings backup into the tablet's Download folder, for Settings > Wix menu > **Load key from file** and Settings > Backup > **Restore settings**. Delete them from the tablet afterwards. |
 | `-Reinstall` | Install again even if the same version is already there. |

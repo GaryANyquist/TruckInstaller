@@ -32,6 +32,7 @@ param(
     [int]$WaitSeconds = 0,
     [switch]$GrantPermissions,
     [switch]$TurnOffDeveloperOptions,
+    [switch]$SetKitchenAsHome,
     [switch]$Reinstall,
     [switch]$NoLaunch,
     [switch]$NoDownload,
@@ -245,6 +246,33 @@ function Copy-FileToTablet {
     else { Add-Problem "Could not copy $name to the tablet: $($r.Output)" }
 }
 
+# "package/.Activity" out of the last line of "cmd package resolve-activity --brief".
+function Get-HomeComponent([string]$Text) {
+    foreach ($line in ($Text -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 3)) {
+        if ($line.Trim() -match '^([A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)$') { return $Matches[1] }
+    }
+    $null
+}
+
+# Makes the Kitchen Display the tablet's Home app, so Android opens it every time the tablet starts (needs app version 1.2.0 or newer).
+# The previous Home app is recorded in the summary with the command that puts it back.
+function Set-KitchenAsHome {
+    param([string]$Serial)
+    $pkg = $script:Apps.Kitchen.Package
+    $component = "$pkg/.MainActivity"
+    if ($DryRun) { Write-Log "[dry run] would: make the Kitchen Display the Home app on $Serial"; return }
+    $before = Get-HomeComponent (Invoke-Adb @('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME') $Serial).Output
+    if ($before -and $before.StartsWith("$pkg/")) { Write-Log "The Kitchen Display is already the Home app on $Serial" 'OK'; return }
+    $candidates = (Invoke-Adb @('shell', 'cmd', 'package', 'query-activities', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME') $Serial).Output
+    if ($candidates -notmatch [regex]::Escape($pkg)) { Add-Problem "The Kitchen Display on $Serial has no Home entry (it needs version 1.2.0 or newer), so it cannot be made the Home app."; return }
+    $r = Invoke-Adb @('shell', 'cmd', 'package', 'set-home-activity', $component) $Serial
+    $after = Get-HomeComponent (Invoke-Adb @('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME') $Serial).Output
+    if ($after -and $after.StartsWith("$pkg/")) {
+        Write-Log "The Kitchen Display is now the Home app on $Serial (it opens by itself when the tablet starts)" 'OK'
+        $script:Report.Add("HOME $Serial : Kitchen Display is the Home app. To put the old one back: adb -s $Serial shell cmd package set-home-activity $before")
+    } else { Add-Problem "Could not make the Kitchen Display the Home app on $Serial ($($r.Output.Trim())). Do it on the tablet: open the app's Settings > Choose Home app." }
+}
+
 function Start-App {
     param([string]$Serial, [string]$Key)
     $app = $script:Apps[$Key]
@@ -341,6 +369,7 @@ function Invoke-Main {
         if ($sdk -match '^\d+$' -and [int]$sdk -lt 28) { Add-Problem "Tablet $($j.Serial) runs Android API $sdk; the apps need Android 9 (API 28) or newer."; continue }
         if (-not (Install-App -Serial $j.Serial -Model $j.Model -Key $j.Key -Apk $apk)) { continue }
         if ($GrantPermissions) { Grant-AppPermissions -Serial $j.Serial -Key $j.Key }
+        if ($SetKitchenAsHome -and $j.Key -eq 'Kitchen') { Set-KitchenAsHome -Serial $j.Serial }
         if ($j.Key -eq 'Register') {
             $registerSerials += $j.Serial
             if ($WixKeyFile) { Copy-FileToTablet $j.Serial $WixKeyFile 'Wix API key: Settings > Wix menu > Load key from file' }

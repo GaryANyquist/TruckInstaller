@@ -63,6 +63,8 @@ Check 'devices: offline' $d[2].State 'offline'
 Check 'devices: nothing connected' @(ConvertFrom-AdbDevices "List of devices attached`n`n").Count 0
 Check 'version name from dumpsys' (Get-VersionNameFromDumpsys "Packages:`n  Package [x] (1):`n    versionCode=1 minSdk=28`n    versionName=2.1.5`n    flags=[ ]") '2.1.5'
 Check 'version name when not installed' (Get-VersionNameFromDumpsys '') $null
+Check 'home app from resolve-activity output' (Get-HomeComponent "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true`ncom.android.launcher3/.uioverrides.QuickstepLauncher") 'com.android.launcher3/.uioverrides.QuickstepLauncher'
+Check 'home app when nothing resolves' (Get-HomeComponent 'No activity found') $null
 
 # ---- with the real tablet
 $script:Adb = Find-Adb
