@@ -65,12 +65,21 @@ Check 'version name from dumpsys' (Get-VersionNameFromDumpsys "Packages:`n  Pack
 Check 'version name when not installed' (Get-VersionNameFromDumpsys '') $null
 Check 'home app from resolve-activity output' (Get-HomeComponent "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true`ncom.android.launcher3/.uioverrides.QuickstepLauncher") 'com.android.launcher3/.uioverrides.QuickstepLauncher'
 Check 'home app when nothing resolves' (Get-HomeComponent 'No activity found') $null
+$cands = "3 activities found:`n  Activity #0:`n  priority=0 preferredOrder=0`n  com.android.launcher3/.uioverrides.QuickstepLauncher`n  Activity #1:`n  com.davcotech.kitchendisplay/.MainActivity`n  Activity #2:`n  priority=-1000`n  com.android.settings/.FallbackHome"
+Check 'the previous home app is the real launcher, not ours or the fallback' (Get-OtherHomeApp $cands 'com.davcotech.kitchendisplay') 'com.android.launcher3/.uioverrides.QuickstepLauncher'
+Check 'no other home app' (Get-OtherHomeApp "  com.davcotech.kitchendisplay/.MainActivity`n  com.android.settings/.FallbackHome" 'com.davcotech.kitchendisplay') $null
 
 # ---- with the real tablet
 $script:Adb = Find-Adb
 $tablet = $null
-if ($script:Adb) { $tablet = @(ConvertFrom-AdbDevices (Invoke-Adb @('devices', '-l')).Output | Where-Object { $_.State -eq 'device' }) | Select-Object -First 1 }
-if (-not $tablet) { Write-Host "`n(no tablet plugged in: skipping the tests that need one)" -ForegroundColor Yellow }
+# Only a tablet that ALREADY has both apps is used, and every real run below names it by serial: the tests must never
+# install an app on a tablet that did not have it (that happened once, to a kitchen tablet, when this used "-Role").
+if ($script:Adb) {
+    foreach ($d in @(ConvertFrom-AdbDevices (Invoke-Adb @('devices', '-l')).Output | Where-Object { $_.State -eq 'device' })) {
+        if ((Get-InstalledVersion $d.Serial 'com.davcotech.foodtruckpos') -and (Get-InstalledVersion $d.Serial 'com.davcotech.kitchendisplay')) { $tablet = $d; break }
+    }
+}
+if (-not $tablet) { Write-Host "`n(no plugged-in tablet has both apps installed: skipping the tests that need one)" -ForegroundColor Yellow }
 else {
     Write-Host "`n--- with the tablet $($tablet.Model) ($($tablet.Serial))"
     $before = @{
@@ -79,13 +88,13 @@ else {
     }
     $run = { param($extra) & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer @extra -NoPause 2>&1 | Out-String }
 
-    $dry = & $run @('-DryRun', '-Role', 'Kitchen')
+    $dry = & $run @('-DryRun', '-KitchenSerial', $tablet.Serial)
     CheckTrue 'dry run finds the tablet' ($dry -match 'Found tablet')
     CheckTrue 'dry run reports no problems' ($dry -match 'No problems found')
     CheckTrue 'dry run ends with a summary' ($dry -match 'TABLET SETUP SUMMARY')
     Check 'dry run changed nothing (kitchen version)' (Get-InstalledVersion $tablet.Serial 'com.davcotech.kitchendisplay') $before.Kit
 
-    $skip = & $run @('-Role', 'Register', '-NoLaunch', '-Yes')
+    $skip = & $run @('-RegisterSerial', $tablet.Serial, '-NoLaunch', '-Yes')
     CheckTrue 'an app that is already current is left alone' ($skip -match 'already at version')
     CheckTrue 'it notices Developer options are on' ($skip -match 'Developer options')
     Check 'nothing changed (register version)' (Get-InstalledVersion $tablet.Serial 'com.davcotech.foodtruckpos') $before.Reg
@@ -98,7 +107,7 @@ else {
     if ($Integration) {
         Write-Host "`n--- integration: reinstall the Kitchen Display app over itself, then restore"
         $micBefore = (Invoke-Adb @('shell', 'dumpsys', 'package', 'com.davcotech.kitchendisplay') $tablet.Serial).Output -match 'RECORD_AUDIO: granted=true'
-        $out = & $run @('-Role', 'Kitchen', '-Reinstall', '-GrantPermissions', '-NoLaunch', '-Yes')
+        $out = & $run @('-KitchenSerial', $tablet.Serial, '-Reinstall', '-GrantPermissions', '-NoLaunch', '-Yes')
         CheckTrue 'reinstall reports success' ($out -match 'installed, now version')
         CheckTrue 'reinstall reports no problems' ($out -match 'No problems found')
         Check 'kitchen app version is unchanged' (Get-InstalledVersion $tablet.Serial 'com.davcotech.kitchendisplay') $before.Kit

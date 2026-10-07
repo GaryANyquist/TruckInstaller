@@ -254,6 +254,16 @@ function Get-HomeComponent([string]$Text) {
     $null
 }
 
+# The tablet's ordinary Home app out of "cmd package query-activities" output: the first one that is not ours and not Android's
+# built-in fallback.
+function Get-OtherHomeApp([string]$Text, [string]$OurPackage) {
+    foreach ($line in ($Text -split "`r?`n")) {
+        $l = $line.Trim()
+        if ($l -match '^([A-Za-z0-9_.]+)/([A-Za-z0-9_.$]+)$' -and $Matches[1] -ne $OurPackage -and $l -notmatch 'FallbackHome') { return $l }
+    }
+    $null
+}
+
 # Makes the Kitchen Display the tablet's Home app, so Android opens it every time the tablet starts (needs app version 1.2.0 or newer).
 # The previous Home app is recorded in the summary with the command that puts it back.
 function Set-KitchenAsHome {
@@ -265,11 +275,14 @@ function Set-KitchenAsHome {
     if ($before -and $before.StartsWith("$pkg/")) { Write-Log "The Kitchen Display is already the Home app on $Serial" 'OK'; return }
     $candidates = (Invoke-Adb @('shell', 'cmd', 'package', 'query-activities', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME') $Serial).Output
     if ($candidates -notmatch [regex]::Escape($pkg)) { Add-Problem "The Kitchen Display on $Serial has no Home entry (it needs version 1.2.0 or newer), so it cannot be made the Home app."; return }
+    # With two Home apps and no saved choice, Android's chooser is what "resolves", so the real previous one is read from the list.
+    $restore = Get-OtherHomeApp $candidates $pkg
+    if (-not $restore) { $restore = $before }
     $r = Invoke-Adb @('shell', 'cmd', 'package', 'set-home-activity', $component) $Serial
     $after = Get-HomeComponent (Invoke-Adb @('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME') $Serial).Output
     if ($after -and $after.StartsWith("$pkg/")) {
         Write-Log "The Kitchen Display is now the Home app on $Serial (it opens by itself when the tablet starts)" 'OK'
-        $script:Report.Add("HOME $Serial : Kitchen Display is the Home app. To put the old one back: adb -s $Serial shell cmd package set-home-activity $before")
+        $script:Report.Add("HOME $Serial : Kitchen Display is the Home app. To put the old one back: adb -s $Serial shell cmd package set-home-activity $restore   (or on the tablet: Settings > Apps > Default apps > Home app)")
     } else { Add-Problem "Could not make the Kitchen Display the Home app on $Serial ($($r.Output.Trim())). Do it on the tablet: open the app's Settings > Choose Home app." }
 }
 
