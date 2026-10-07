@@ -26,10 +26,15 @@ foreach ($n in 'ComfortablyYum-2.0.9-live.apk', 'ComfortablyYum-2.1.5-live.apk',
     Set-Content -Path (Join-Path $tmp $n) -Value 'x'
 }
 # copies without the real build folders, so only the scratch folder is searched
-$reg = @{ Pattern = $script:Apps.Register.Pattern; Dirs = @() }
-$kit = @{ Pattern = $script:Apps.Kitchen.Pattern; Dirs = @() }
+$reg = @{ Patterns = $script:Apps.Register.Patterns; Dirs = @() }
+$kit = @{ Patterns = $script:Apps.Kitchen.Patterns; Dirs = @() }
 Check 'newest register APK is picked by version, not by name' (Find-LatestApk $reg '' @($tmp)).Name 'ComfortablyYum-2.1.10-live.apk'
 Check 'a sandbox build is never picked' ((Find-LatestApk $reg '' @($tmp)).Name -like '*sandbox*') $false
+# the register app was renamed: files under the new name are found, and the highest version wins across both names
+Set-Content -Path (Join-Path $tmp 'AnnawareCashRegister-2.1.6-live.apk') -Value 'x'
+Check 'the renamed register APK is found and wins on version' (Find-LatestApk $reg '' @($tmp)).Name 'ComfortablyYum-2.1.10-live.apk'
+Remove-Item (Join-Path $tmp 'ComfortablyYum-2.1.10-live.apk')
+Check 'with the old 2.1.10 gone, the renamed 2.1.6 beats the old 2.1.5' (Find-LatestApk $reg '' @($tmp)).Name 'AnnawareCashRegister-2.1.6-live.apk'
 Check 'newest kitchen APK' (Find-LatestApk $kit '' @($tmp)).Name 'KitchenDisplay-1.1.0.apk'
 Check 'an explicit file wins' (Find-LatestApk $reg (Join-Path $tmp 'ComfortablyYum-2.0.9-live.apk') @()).Name 'ComfortablyYum-2.0.9-live.apk'
 Check 'an explicit file that is missing gives nothing' (Find-LatestApk $reg (Join-Path $tmp 'nope.apk') @()) $null

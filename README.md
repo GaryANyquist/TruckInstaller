@@ -94,8 +94,8 @@ turn on **USB debugging**. Plug in the cable, set the USB mode to **File transfe
 "Allow USB debugging?" box (tick Always allow).
 
 Put the APK files next to the script (or in an `apk` folder next to it). If you build the apps on this PC, it also finds
-them in the build folders by itself. It picks the newest version of each: `ComfortablyYum-<version>-live.apk` and
-`KitchenDisplay-<version>.apk`.
+them in the build folders by itself. It picks the newest version of each: `AnnawareCashRegister-<version>-live.apk`
+(older builds were named `ComfortablyYum-<version>-live.apk`; both are found) and `KitchenDisplay-<version>.apk`.
 
 If `adb` is not on the PC, the script downloads Google's platform-tools (about 7 MB) into a `tools` folder next to it.
 

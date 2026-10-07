@@ -49,16 +49,16 @@ $script:ToolsDir = Join-Path $PSScriptRoot 'tools'
 
 $script:Apps = @{
     Register = @{
-        Name        = 'Register (Comfortably Yum)'
+        Name        = 'Register (Annaware CashRegister)'
         Package     = 'com.davcotech.foodtruckpos'
-        Pattern     = 'ComfortablyYum-*-live.apk'
+        Patterns    = @('AnnawareCashRegister-*-live.apk', 'ComfortablyYum-*-live.apk')
         Dirs        = @('C:\Source\CashRegister\dist-apk')
         Permissions = @('android.permission.BLUETOOTH_CONNECT', 'android.permission.BLUETOOTH_SCAN', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.READ_PHONE_STATE', 'android.permission.RECORD_AUDIO')
     }
     Kitchen  = @{
-        Name        = 'Kitchen Display'
+        Name        = 'Annaware Kitchen Display'
         Package     = 'com.davcotech.kitchendisplay'
-        Pattern     = 'KitchenDisplay-*.apk'
+        Patterns    = @('KitchenDisplay-*.apk')
         Dirs        = @('C:\Source\KitchenDisplay\app\dist-apk')
         Permissions = @('android.permission.RECORD_AUDIO')
     }
@@ -87,7 +87,8 @@ function Find-LatestApk {
     $dirs = @($PSScriptRoot, (Join-Path $PSScriptRoot 'apk')) + $ExtraDirs + $App.Dirs
     $found = @()
     foreach ($d in $dirs) {
-        if ($d -and (Test-Path $d)) { $found += @(Get-ChildItem -Path $d -Filter $App.Pattern -File -ErrorAction SilentlyContinue) }
+        if (-not ($d -and (Test-Path $d))) { continue }
+        foreach ($pattern in $App.Patterns) { $found += @(Get-ChildItem -Path $d -Filter $pattern -File -ErrorAction SilentlyContinue) }
     }
     if ($found.Count -eq 0) { return $null }
     $found | Sort-Object @{ Expression = { Get-ApkVersion $_.Name }; Descending = $true }, @{ Expression = { $_.LastWriteTime }; Descending = $true } | Select-Object -First 1
